@@ -356,9 +356,11 @@ def main():
         #bg_opacity = st.slider("Background opacity", 0.0, 1.0, 0.58, 0.01)
         st.caption(f"Database updated: {db['updated_at']}")
 
+    '''
     # Apply background (optional)
     if show_bg:
         set_app_background(BACKGROUND_IMAGE, opacity=bg_opacity)
+        '''
     # Always add UI readability layer
     inject_ui_chrome()
 
