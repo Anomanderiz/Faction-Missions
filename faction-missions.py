@@ -143,8 +143,55 @@ def mission_detail_view(db, mission_id: str):
     st.write(f"**Location:** {m['location']}")
     st.write(f"**Reward:** {m['reward']}")
     st.write(f"**Status:** {m['status']}")
+
+    # --- Player actions (snappy, state-safe) ---
+    c1, c2, c3, c4 = st.columns(4)
+    status = m["status"]
+    if status == "Available":
+        if c1.button("Accept mission", key=f"accept_{m['id']}"):
+            update_mission(db, m["id"], status="Accepted")
+            st.success("Mission accepted.")
+            st.rerun()
+    elif status == "Accepted":
+        if c1.button("Mark Completed", key=f"complete_{m['id']}"):
+            update_mission(db, m["id"], status="Completed")
+            st.success("Marked completed.")
+            st.rerun()
+        if c2.button("Mark Failed", key=f"fail_{m['id']}"):
+            update_mission(db, m["id"], status="Failed")
+            st.warning("Marked failed.")
+            st.rerun()
+        if c3.button("Reset to Available", key=f"reset_{m['id']}"):
+            update_mission(db, m["id"], status="Available")
+            st.info("Reset to available.")
+            st.rerun()
+    else:  # Completed or Failed
+        if c1.button("Reopen (Available)", key=f"reopen_{m['id']}"):
+            update_mission(db, m["id"], status="Available")
+            st.info("Reopened.")
+            st.rerun()
+        if c2.button("Accept", key=f"accept2_{m['id']}"):
+            update_mission(db, m["id"], status="Accepted")
+            st.success("Accepted.")
+            st.rerun()
+
     st.write("")
-    st.subheader("Details")
+    st.subheader("Story Hook / Context")
+    st.write(m["hook"] or "No hook provided yet.")
+
+    st.divider()
+    if st.button("← Back to Dashboard", use_container_width=True):
+        st.session_state["selected_mission_id"] = None
+        st.rerun()
+
+
+    st.header(m["title"])
+    st.write(f"**Faction:** {m['faction']}")
+    st.write(f"**Location:** {m['location']}")
+    st.write(f"**Reward:** {m['reward']}")
+    st.write(f"**Status:** {m['status']}")
+    st.write("")
+    st.subheader("Story Hook / Context")
     st.write(m["hook"] or "No hook provided yet.")
 
     st.divider()
@@ -352,14 +399,13 @@ def main():
     with st.sidebar:
         st.header("View Mode")
         dm_mode = st.toggle("DM Mode", value=False, help="Toggle to add/edit missions.")
-        #show_bg = st.toggle("Show background", value=True)
-        #bg_opacity = st.slider("Background opacity", 0.0, 1.0, 0.58, 0.01)
+        show_bg = st.toggle("Show background", value=True)
+        bg_opacity = st.slider("Background opacity", 0.0, 1.0, 0.58, 0.01)
         st.caption(f"Database updated: {db['updated_at']}")
-        
+
     # Apply background (optional)
-    #if show_bg:
-        #set_app_background(BACKGROUND_IMAGE, opacity=bg_opacity)
-    
+    if show_bg:
+        set_app_background(BACKGROUND_IMAGE, opacity=bg_opacity)
     # Always add UI readability layer
     inject_ui_chrome()
 
