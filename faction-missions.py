@@ -8,10 +8,10 @@ import base64
 APP_TITLE = "Waterdeep Faction Missions"
 DATA_FILE = Path("missions.json")
 FACTIONS = [
-    "Emerald Enclave",
-    "Lord's Alliance",
-    "Harpers",
-    "Force Grey",
+    "Emerald Enclave 🌿",
+    "Lord's Alliance 👑",
+    "Harpers 🎼",
+    "Force Grey 🥷",
 ]
 
 # Path to your background image (put it next to app.py or adjust as needed)
