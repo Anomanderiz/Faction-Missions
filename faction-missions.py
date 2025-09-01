@@ -105,7 +105,7 @@ CARD_CSS = """
 .badge-Accepted  { background: rgba(59,130,246,0.15); color: rgb(59,130,246); }
 .badge-Completed { background: rgba(139,92,246,0.15); color: rgb(139,92,246); }
 .badge-Failed    { background: rgba(244,63,94,0.15); color: rgb(244,63,94); }
-.small { opacity: 0.7; font-size: 1.0rem; }
+.small { opacity: 1.0; font-size: 1.0rem; }
 .title { font-weight: 700; font-size: 1.5rem; }
   background: rgba(0,0,0,0.25);
 }
