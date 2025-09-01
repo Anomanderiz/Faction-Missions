@@ -108,7 +108,6 @@ CARD_CSS = """
 .small { opacity: 1.0; font-size: 1.0rem; }
 .title { font-weight: 700; font-size: 1.5rem; }
   background: rgba(0,0,0,0.25);
-}
 </style>
 """
 
