@@ -7,10 +7,10 @@ import streamlit as st
 APP_TITLE = "Waterdeep Faction Missions"
 DATA_FILE = Path("missions.json")
 FACTIONS = [
-    "Emerald Enclave",
-    "Lord's Alliance",
-    "Harpers",
-    "Force Grey",
+    "Emerald Enclave 🌿",
+    "Lord's Alliance 👑",
+    "Harpers 🎼",
+    "Force Grey 🥷",
 ]
 
 # ---------- Data Layer ----------
