@@ -226,7 +226,7 @@ def set_app_background(image_path: str, opacity: float = 0.58):
         st.caption(f"Background image not loaded: {e}")
 
 
-def inject_ui_chrome(ui_opacity: float = 0.55, sidebar_opacity: float = 0.50, expander_opacity: float = 0.0):
+def inject_ui_chrome(ui_opacity: float = 0.55, sidebar_opacity: float = 0.50, expander_opacity: float = 0.28):
     """Adds semi-transparent dark backgrounds to improve readability over imagery
     and centers layout & widgets for a unified look."""
     css = f"""
