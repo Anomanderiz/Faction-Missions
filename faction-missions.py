@@ -184,22 +184,6 @@ def mission_detail_view(db, mission_id: str):
         st.session_state["selected_mission_id"] = None
         st.rerun()
 
-
-    st.header(m["title"])
-    st.write(f"**Faction:** {m['faction']}")
-    st.write(f"**Location:** {m['location']}")
-    st.write(f"**Reward:** {m['reward']}")
-    st.write(f"**Status:** {m['status']}")
-    st.write("")
-    st.subheader("Story Hook / Context")
-    st.write(m["hook"] or "No hook provided yet.")
-
-    st.divider()
-    if st.button("← Back to Dashboard", use_container_width=True):
-        st.session_state["selected_mission_id"] = None
-        st.rerun()
-
-
 # ---------- Background ----------
 
 def inject_ui_chrome(ui_opacity: float = 0.35, sidebar_opacity: float = 0.50, expander_opacity: float = 0.28):
