@@ -433,8 +433,8 @@ def main():
         st.caption(f"Database updated: {db['updated_at']}")
 
     # Apply background (optional)
-    if show_bg:
-        set_app_background(BACKGROUND_IMAGE, opacity=bg_opacity)
+    #if show_bg:
+    set_app_background(BACKGROUND_IMAGE, opacity=bg_opacity)
     # Always add UI readability layer and centering
     inject_ui_chrome()
 
