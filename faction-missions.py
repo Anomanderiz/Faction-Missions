@@ -429,7 +429,7 @@ def main():
         st.header("View Mode")
         dm_mode = st.toggle("DM Mode", value=False, help="Toggle to add/edit missions.")
         #show_bg = st.toggle("Show background", value=True)
-        bg_opacity = 0.58
+        bg_opacity = 1.0
         st.caption(f"Database updated: {db['updated_at']}")
 
     # Apply background (optional)
