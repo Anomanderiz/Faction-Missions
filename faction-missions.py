@@ -144,7 +144,7 @@ def mission_detail_view(db, mission_id: str):
     st.write(f"**Reward:** {m['reward']}")
     st.write(f"**Status:** {m['status']}")
     st.write("")
-    st.subheader("Story Hook / Context")
+    st.subheader("Details")
     st.write(m["hook"] or "No hook provided yet.")
 
     st.divider()
