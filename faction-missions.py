@@ -1,3 +1,4 @@
+
 import json
 import uuid
 from datetime import datetime
@@ -16,6 +17,7 @@ FACTIONS = [
 
 # Path to your background image (put it next to app.py or adjust as needed)
 BACKGROUND_IMAGE = "background.jpg"
+
 
 # ---------- Data Layer ----------
 
@@ -99,15 +101,15 @@ CARD_CSS = """
   padding: 0.9rem 1rem;
   margin: 0.4rem 0 0.8rem 0;
   box-shadow: 0 2px 14px rgba(0,0,0,0.08);
+  background: rgba(0,0,0,0.25);
 }
 .badge { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; opacity: 0.85; }
 .badge-Available { background: rgba(16,185,129,0.15); color: rgb(16,185,129); }
 .badge-Accepted  { background: rgba(59,130,246,0.15); color: rgb(59,130,246); }
 .badge-Completed { background: rgba(139,92,246,0.15); color: rgb(139,92,246); }
 .badge-Failed    { background: rgba(244,63,94,0.15); color: rgb(244,63,94); }
-.small { opacity: 1.0; font-size: 1.0rem; }
-.title { font-weight: 700; font-size: 1.5rem; }
-  background: rgba(0,0,0,0.25);
+.small { opacity: 0.7; font-size: 0.85rem; }
+.title { font-weight: 700; font-size: 1.0rem; }
 </style>
 """
 
@@ -179,42 +181,12 @@ def mission_detail_view(db, mission_id: str):
     st.write(m["hook"] or "No hook provided yet.")
 
     st.divider()
-    if st.button("← Back to Dashboard", use_container_width=True):
+    if st.button("← Back to Dashboard", key=f"back_{m['id']}", use_container_width=True):
         st.session_state["selected_mission_id"] = None
         st.rerun()
 
+
 # ---------- Background ----------
-
-def inject_ui_chrome(ui_opacity: float = 0.35, sidebar_opacity: float = 0.50, expander_opacity: float = 0.28):
-    """Adds semi-transparent dark backgrounds to improve readability over imagery."""
-    css = f"""
-    <style>
-    /* Main content panel */
-    .block-container {{
-        background: rgba(0,0,0,{ui_opacity});
-        border-radius: 16px;
-        padding: 1rem 1.25rem;
-        backdrop-filter: blur(2px);
-    }}
-    /* Sidebar readability */
-    [data-testid="stSidebar"] {{
-        background: rgba(0,0,0,{sidebar_opacity});
-        backdrop-filter: blur(3px);
-    }}
-    /* Expanders & headers */
-    .stExpander, details {{
-        background: rgba(0,0,0,{expander_opacity}) !important;
-        border-radius: 12px !important;
-    }}
-    [data-testid="stHeader"] {{
-        background: rgba(0,0,0,{ui_opacity});
-        backdrop-filter: blur(2px);
-    }}
-    </style>
-    """
-    st.markdown(css, unsafe_allow_html=True)
-
-
 
 def set_app_background(image_path: str, opacity: float = 0.58):
     """Inject a full-app background image at given opacity without blocking UI.
@@ -253,6 +225,79 @@ def set_app_background(image_path: str, opacity: float = 0.58):
     except Exception as e:
         st.caption(f"Background image not loaded: {e}")
 
+
+def inject_ui_chrome(ui_opacity: float = 0.35, sidebar_opacity: float = 0.50, expander_opacity: float = 0.28):
+    """Adds semi-transparent dark backgrounds to improve readability over imagery
+    and centers layout & widgets for a unified look."""
+    css = f"""
+    <style>
+    /* Main content panel */
+    .block-container {{
+        background: rgba(0,0,0,{ui_opacity});
+        border-radius: 16px;
+        padding: 1rem 1.25rem;
+        backdrop-filter: blur(2px);
+        /* Center the whole content area and limit width for readability */
+        max-width: 1100px;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center;
+    }}
+
+    /* Center typical text blocks */
+    .block-container [data-testid="stMarkdownContainer"],
+    .block-container p, .block-container h1, .block-container h2, .block-container h3,
+    .block-container h4, .block-container h5, .block-container h6 {{
+        text-align: center;
+    }}
+
+    /* Sidebar readability & centering */
+    [data-testid="stSidebar"] {{
+        background: rgba(0,0,0,{sidebar_opacity});
+        backdrop-filter: blur(3px);
+        text-align: center;
+    }}
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+    [data-testid="stSidebar"] label {{
+        text-align: center;
+        width: 100%;
+    }}
+
+    /* Inputs centered */
+    .stTextInput input, .stTextArea textarea {{
+        text-align: center;
+    }}
+    .stSelectbox > div, .stMultiSelect > div {{
+        margin-left: auto; margin-right: auto;
+    }}
+
+    /* Buttons centered */
+    .stButton > button, .stDownloadButton > button {{
+        display: block; /* full-width block for margin auto to work */
+        margin-left: auto; margin-right: auto;
+    }}
+
+    /* Make column content center-aligned */
+    [data-testid="column"] > div {{
+        display: flex; flex-direction: column; align-items: center;
+    }}
+
+    /* Expanders & headers */
+    .stExpander, details {{
+        background: rgba(0,0,0,{expander_opacity}) !important;
+        border-radius: 12px !important;
+    }}
+    [data-testid="stHeader"] {{
+        background: rgba(0,0,0,{ui_opacity});
+        backdrop-filter: blur(2px);
+    }}
+
+    /* Mission cards center */
+    .card {{ text-align: center; }}
+    .card .small {{ justify-content: center; display: flex; gap: 0.5rem; }}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
 
 
 # ---------- Pages ----------
@@ -327,9 +372,11 @@ def dm_panel(db):
                         if st.button("Save", key=f"save_{m['id']}"):
                             update_mission(db, m["id"], title=title, reward=reward, location=location, status=status, hook=hook)
                             st.success("Saved.")
+                            st.rerun()
                         if st.button("Delete", key=f"delete_{m['id']}"):
                             if delete_mission(db, m["id"]):
-                                st.success("Deleted. Refresh the app to update the list.")
+                                st.success("Deleted.")
+                                st.rerun()
                             else:
                                 st.error("Could not delete (mission not found).")
 
@@ -371,7 +418,6 @@ def player_dashboard(db):
 
 def main():
     st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide", initial_sidebar_state="collapsed")
-    set_app_background(BACKGROUND_IMAGE, opacity=0.58)
     st.title(APP_TITLE)
 
     if "selected_mission_id" not in st.session_state:
@@ -389,7 +435,7 @@ def main():
     # Apply background (optional)
     #if show_bg:
         #set_app_background(BACKGROUND_IMAGE, opacity=bg_opacity)
-    # Always add UI readability layer
+    # Always add UI readability layer and centering
     inject_ui_chrome()
 
     # Detail page if a mission is selected
