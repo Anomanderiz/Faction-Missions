@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 import streamlit as st
+import base64
 
 APP_TITLE = "Waterdeep Faction Missions"
 DATA_FILE = Path("missions.json")
@@ -12,6 +13,9 @@ FACTIONS = [
     "Harpers 🎼",
     "Force Grey 🥷",
 ]
+
+# Path to your background image (put it next to app.py or adjust as needed)
+BACKGROUND_IMAGE = "background.jpg"
 
 # ---------- Data Layer ----------
 
@@ -145,6 +149,41 @@ def mission_detail_view(db, mission_id: str):
         st.session_state["selected_mission_id"] = None
 
 
+# ---------- Background ----------
+
+def set_app_background(image_path: str, opacity: float = 0.58):
+    """Inject a full-app background image at given opacity without dimming UI widgets.
+    Uses a fixed-position pseudo-element behind Streamlit's layout.
+    """
+    try:
+        img_bytes = Path(image_path).read_bytes()
+        b64 = base64.b64encode(img_bytes).decode()
+        css = f"""
+        <style>
+        .stApp {{
+            position: relative;
+            background: transparent !important;
+        }}
+        .stApp::before {{
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image: url('data:image/jpeg;base64,{b64}');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            opacity: {opacity};
+            z-index: -1;
+            pointer-events: none;
+        }}
+        </style>
+        """
+        st.markdown(css, unsafe_allow_html=True)
+    except Exception as e:
+        # Silent failure keeps the app usable even if the image is missing
+        st.caption(f"Background image not loaded: {e}")
+
+
 # ---------- Pages ----------
 
 def dm_panel(db):
@@ -261,6 +300,8 @@ def player_dashboard(db):
 
 def main():
     st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide")
+    # Apply background image at ~60% opacity
+    set_app_background(BACKGROUND_IMAGE, opacity=0.58)
     st.title(APP_TITLE)
 
     if "selected_mission_id" not in st.session_state:
