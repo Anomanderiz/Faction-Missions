@@ -152,19 +152,20 @@ def mission_detail_view(db, mission_id: str):
 # ---------- Background ----------
 
 def set_app_background(image_path: str, opacity: float = 0.58):
-    """Inject a full-app background image at given opacity without dimming UI widgets.
-    Uses a fixed-position pseudo-element behind Streamlit's layout.
+    """Inject a full-app background image at given opacity without blocking UI.
+    Works across recent Streamlit versions by layering behind the app view container.
     """
     try:
         img_bytes = Path(image_path).read_bytes()
         b64 = base64.b64encode(img_bytes).decode()
         css = f"""
         <style>
-        .stApp {{
-            position: relative;
+        /* Keep the app transparent so our pseudo-element shows through */
+        [data-testid="stAppViewContainer"] {{
             background: transparent !important;
         }}
-        .stApp::before {{
+        /* Background layer behind everything */
+        [data-testid="stAppViewContainer"]::before {{
             content: "";
             position: fixed;
             inset: 0;
@@ -173,15 +174,20 @@ def set_app_background(image_path: str, opacity: float = 0.58):
             background-position: center;
             background-attachment: fixed;
             opacity: {opacity};
-            z-index: -1;
-            pointer-events: none;
+            z-index: 0;              /* base layer */
+            pointer-events: none;    /* never intercept clicks */
+        }}
+        /* Ensure real UI sits above the background */
+        .main, .block-container, [data-testid="stSidebar"], [data-testid="stHeader"] {{
+            position: relative;
+            z-index: 1;
         }}
         </style>
         """
         st.markdown(css, unsafe_allow_html=True)
     except Exception as e:
-        # Silent failure keeps the app usable even if the image is missing
         st.caption(f"Background image not loaded: {e}")
+
 
 
 # ---------- Pages ----------
@@ -300,7 +306,6 @@ def player_dashboard(db):
 
 def main():
     st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide")
-    # Apply background image at ~60% opacity
     set_app_background(BACKGROUND_IMAGE, opacity=0.58)
     st.title(APP_TITLE)
 
@@ -312,7 +317,13 @@ def main():
     with st.sidebar:
         st.header("View Mode")
         dm_mode = st.toggle("DM Mode", value=False, help="Toggle to add/edit missions.")
+        show_bg = st.toggle("Show background", value=True)
+        bg_opacity = st.slider("Background opacity", 0.0, 1.0, 0.58, 0.01)
         st.caption(f"Database updated: {db['updated_at']}")
+
+    # Apply background (optional)
+    if show_bg:
+        set_app_background(BACKGROUND_IMAGE, opacity=bg_opacity)
 
     # Detail page if a mission is selected
     if st.session_state.get("selected_mission_id"):
