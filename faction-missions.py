@@ -8,10 +8,10 @@ import base64
 APP_TITLE = "Waterdeep Faction Missions"
 DATA_FILE = Path("missions.json")
 FACTIONS = [
-    "Emerald Enclave 🌿",
-    "Lord's Alliance 👑",
-    "Harpers 🎼",
-    "Force Grey 🥷",
+    "Emerald Enclave",
+    "Lord's Alliance",
+    "Harpers",
+    "Force Grey",
 ]
 
 # Path to your background image (put it next to app.py or adjust as needed)
@@ -107,6 +107,8 @@ CARD_CSS = """
 .badge-Failed    { background: rgba(244,63,94,0.15); color: rgb(244,63,94); }
 .small { opacity: 0.7; font-size: 0.85rem; }
 .title { font-weight: 700; font-size: 1.0rem; }
+  background: rgba(0,0,0,0.25);
+}
 </style>
 """
 
@@ -127,6 +129,7 @@ def mission_card(m, key_prefix: str = ""):
         open_clicked = cols[0].button("Open", key=f"open_{key_prefix}{m['id']}")
         if open_clicked:
             st.session_state["selected_mission_id"] = m["id"]
+            st.rerun()
 
 
 def mission_detail_view(db, mission_id: str):
@@ -147,9 +150,41 @@ def mission_detail_view(db, mission_id: str):
     st.divider()
     if st.button("← Back to Dashboard", use_container_width=True):
         st.session_state["selected_mission_id"] = None
+        st.rerun()
 
 
 # ---------- Background ----------
+
+def inject_ui_chrome(ui_opacity: float = 0.35, sidebar_opacity: float = 0.50, expander_opacity: float = 0.28):
+    """Adds semi-transparent dark backgrounds to improve readability over imagery."""
+    css = f"""
+    <style>
+    /* Main content panel */
+    .block-container {{
+        background: rgba(0,0,0,{ui_opacity});
+        border-radius: 16px;
+        padding: 1rem 1.25rem;
+        backdrop-filter: blur(2px);
+    }}
+    /* Sidebar readability */
+    [data-testid="stSidebar"] {{
+        background: rgba(0,0,0,{sidebar_opacity});
+        backdrop-filter: blur(3px);
+    }}
+    /* Expanders & headers */
+    .stExpander, details {{
+        background: rgba(0,0,0,{expander_opacity}) !important;
+        border-radius: 12px !important;
+    }}
+    [data-testid="stHeader"] {{
+        background: rgba(0,0,0,{ui_opacity});
+        backdrop-filter: blur(2px);
+    }}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
+
+
 
 def set_app_background(image_path: str, opacity: float = 0.58):
     """Inject a full-app background image at given opacity without blocking UI.
@@ -305,7 +340,7 @@ def player_dashboard(db):
 # ---------- App ----------
 
 def main():
-    st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide")
+    st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide", initial_sidebar_state="collapsed")
     set_app_background(BACKGROUND_IMAGE, opacity=0.58)
     st.title(APP_TITLE)
 
@@ -324,6 +359,8 @@ def main():
     # Apply background (optional)
     if show_bg:
         set_app_background(BACKGROUND_IMAGE, opacity=bg_opacity)
+    # Always add UI readability layer
+    inject_ui_chrome()
 
     # Detail page if a mission is selected
     if st.session_state.get("selected_mission_id"):
