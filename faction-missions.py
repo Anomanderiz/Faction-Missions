@@ -428,13 +428,13 @@ def main():
     with st.sidebar:
         st.header("View Mode")
         dm_mode = st.toggle("DM Mode", value=False, help="Toggle to add/edit missions.")
-        #show_bg = st.toggle("Show background", value=True)
+        show_bg = st.toggle("Show background", value=True)
         #bg_opacity = st.slider("Background opacity", 0.0, 1.0, 0.58, 0.01)
         st.caption(f"Database updated: {db['updated_at']}")
 
     # Apply background (optional)
-    #if show_bg:
-        #set_app_background(BACKGROUND_IMAGE, opacity=bg_opacity)
+    if show_bg:
+        set_app_background(BACKGROUND_IMAGE, opacity=bg_opacity)
     # Always add UI readability layer and centering
     inject_ui_chrome()
 
