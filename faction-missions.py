@@ -177,7 +177,7 @@ def mission_detail_view(db, mission_id: str):
             st.rerun()
 
     st.write("")
-    st.subheader("Story Hook / Context")
+    st.subheader("Details")
     st.write(m["hook"] or "No hook provided yet.")
 
     st.divider()
