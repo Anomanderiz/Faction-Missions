@@ -116,13 +116,13 @@ def _empty_db():
 def load_db():
     """Prefer Google Sheets; fall back to local JSON; cache in session."""
     if _sheets_enabled():
-    try:
-        data = _sheets_load_db()
-        st.session_state["db"] = data
-        DATA_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-        return data
-    except Exception as e:
-        st.warning(f"Sheets load failed ({type(e).__name__}: {e}); using local backup.")
+        try:
+            data = _sheets_load_db()
+            st.session_state["db"] = data
+            DATA_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            return data
+        except Exception as e:
+            st.warning(f"Sheets load failed ({type(e).__name__}: {e}); using local backup.")
 
     # local path
     if DATA_FILE.exists():
