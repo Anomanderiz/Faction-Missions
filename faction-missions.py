@@ -419,76 +419,76 @@ def player_dashboard(db):
         mission_card(m, key_prefix="dash-")
 
 import traceback, json
-"""
-def storage_diagnostics():
-    st.subheader("Storage diagnostics")
-    ok = True
+
+#def storage_diagnostics():
+   # st.subheader("Storage diagnostics")
+#    ok = True
 
     # 1) Secrets presence
-    has_sheet_id = "spreadsheet_id" in st.secrets
-    has_sa = "gcp_service_account" in st.secrets
-    st.write(f"spreadsheet_id present: **{has_sheet_id}**")
-    st.write(f"gcp_service_account present: **{has_sa}**")
-    if not (has_sheet_id and has_sa):
-        st.error("Missing required secrets."); return
+#    has_sheet_id = "spreadsheet_id" in st.secrets
+#    has_sa = "gcp_service_account" in st.secrets
+#    st.write(f"spreadsheet_id present: **{has_sheet_id}**")
+ #   st.write(f"gcp_service_account present: **{has_sa}**")
+  #  if not (has_sheet_id and has_sa):
+   #     st.error("Missing required secrets."); return
 
     # 2) Credentials build
-    try:
-        info = st.secrets["gcp_service_account"]
-        if isinstance(info, str):
-            info = json.loads(info)   # support JSON-in-secrets too
-        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-        from google.oauth2.service_account import Credentials
-        creds = Credentials.from_service_account_info(info, scopes=scopes)
-        st.success("Built service-account credentials.")
-    except Exception as e:
-        ok = False
-        st.error(f"Failed to build credentials: {e}")
-        st.code(traceback.format_exc())
+    #try:
+     #   info = st.secrets["gcp_service_account"]
+      #  if isinstance(info, str):
+       #     info = json.loads(info)   # support JSON-in-secrets too
+        #scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        #from google.oauth2.service_account import Credentials
+        #creds = Credentials.from_service_account_info(info, scopes=scopes)
+        #st.success("Built service-account credentials.")
+    #except Exception as e:
+     #   ok = False
+      #  st.error(f"Failed to build credentials: {e}")
+       # st.code(traceback.format_exc())
 
     # 3) gspread client
-    if ok:
-        try:
-            import gspread
-            gc = gspread.authorize(creds)
-            st.success("Authorised gspread client.")
-        except Exception as e:
-            ok = False
-            st.error(f"Failed to authorise gspread: {e}")
-            st.code(traceback.format_exc())
+    #if ok:
+     #   try:
+      #      import gspread
+       #     gc = gspread.authorize(creds)
+        #    st.success("Authorised gspread client.")
+        #except Exception as e:
+         #   ok = False
+          #  st.error(f"Failed to authorise gspread: {e}")
+           # st.code(traceback.format_exc())
 
     # 4) Open spreadsheet
-    if ok:
-        try:
-            sid = st.secrets["spreadsheet_id"]
-            sh = gc.open_by_key(sid)
-            ws_titles = [ws.title for ws in sh.worksheets()]
-            st.success(f"Opened spreadsheet. Found worksheets: {ws_titles}")
-        except Exception as e:
-            ok = False
-            st.error(f"Failed to open spreadsheet by key: {e}")
-            st.info("• Is the service account **shared** on the sheet as Editor?\n"
-                    "• Is `spreadsheet_id` the long ID (not the full URL)?")
-            st.code(traceback.format_exc())
+ #   if ok:
+  #      try:
+#            sid = st.secrets["spreadsheet_id"]
+ #           sh = gc.open_by_key(sid)
+#            ws_titles = [ws.title for ws in sh.worksheets()]
+ #           st.success(f"Opened spreadsheet. Found worksheets: {ws_titles}")
+ #       except Exception as e:
+ #           ok = False
+#            st.error(f"Failed to open spreadsheet by key: {e}")
+#            st.info("• Is the service account **shared** on the sheet as Editor?\n"
+#                    "• Is `spreadsheet_id` the long ID (not the full URL)?")
+#            st.code(traceback.format_exc())
 
     # 5) Ensure/inspect Missions sheet
-    if ok:
-        try:
-            try:
-                ws = sh.worksheet("Missions")
-            except Exception:
-                ws = sh.add_worksheet("Missions", rows=1000, cols=20)
+#    if ok:
+#        try:
+#            try:
+ #               ws = sh.worksheet("Missions")
+  #          except Exception:
+  #              ws = sh.add_worksheet("Missions", rows=1000, cols=20)
             # header row sanity
-            HEADERS = ["id","faction","title","reward","location","hook",
-                       "created_at","updated_at","status","assigned_to","notes"]
-            first = ws.row_values(1)
-            if first != HEADERS:
-                ws.clear(); ws.update("A1", [HEADERS])
-            st.success("Missions sheet ready with headers.")
-        except Exception as e:
-            st.error(f"Worksheet prep failed: {e}")
-            st.code(traceback.format_exc())
-"""
+ #           HEADERS = ["id","faction","title","reward","location","hook",
+  #                     "created_at","updated_at","status","assigned_to","notes"]
+  #          first = ws.row_values(1)
+  #          if first != HEADERS:
+ #               ws.clear(); ws.update("A1", [HEADERS])
+  #          st.success("Missions sheet ready with headers.")
+ #       except Exception as e:
+ #           st.error(f"Worksheet prep failed: {e}")
+ #           st.code(traceback.format_exc())
+
 
 # ---------- App ----------
 def main():
