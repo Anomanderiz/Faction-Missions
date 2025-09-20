@@ -6,9 +6,16 @@ import streamlit as st
 import base64
 
 APP_TITLE = "Waterdeep Faction Missions"
+
+# Data lives in the user's home dir (as before)
 APP_DIR = Path.home() / ".waterdeep_faction_missions"
 APP_DIR.mkdir(parents=True, exist_ok=True)
 DATA_FILE = APP_DIR / "missions.json"  # persistent on this machine
+
+# App root (for assets)
+APP_ROOT = Path(__file__).resolve().parent
+BACKGROUND_IMAGE = APP_ROOT / "assets" / "parchment.jpg"
+
 FACTIONS = [
     "Emerald Enclave 🌿",
     "Lord's Alliance 👑",
@@ -143,13 +150,18 @@ def mission_detail_view(db, mission_id: str):
 
     col1, col2, col3 = st.columns([2, 2, 1])
     with col1:
-        status = st.selectbox("Status", ["Available", "Accepted", "Completed", "Failed"], index=["Available","Accepted","Completed","Failed"].index(m["status"]))
+        status = st.selectbox(
+            "Status",
+            ["Available", "Accepted", "Completed", "Failed"],
+            index=["Available","Accepted","Completed","Failed"].index(m["status"])
+        )
     with col2:
         assigned_to = st.text_input("Assigned To", value=m.get("assigned_to",""))
     with col3:
         st.caption(f"Last updated: {m['updated_at'].split('T')[0]}")
 
-    notes = st.text_area("DM Notes", value=m.get("notes",""), height=160, placeholder="Clues, complications, timers, consequences…")
+    notes = st.text_area("DM Notes", value=m.get("notes",""), height=160,
+                         placeholder="Clues, complications, timers, consequences…")
 
     c1, c2, c3 = st.columns([1,1,1])
     with c1:
@@ -168,36 +180,76 @@ def mission_detail_view(db, mission_id: str):
             st.session_state["selected_mission_id"] = None
             st.rerun()
 
-def set_app_background():
-    # Respect Streamlit theme colours; add a subtle overlay instead of hard-forcing a light bg.
-    st.markdown("""
+# ---------- Background & Chrome ----------
+
+def set_theme_background(image_path: str | Path, light_opacity=0.55, dark_opacity=0.18):
+    """
+    Restore the parchment background in light *and* dark modes without
+    breaking Streamlit's theme contrast.
+    """
+    p = Path(image_path) if image_path is not None else None
+    if p and p.exists():
+        mime = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
+        b64 = base64.b64encode(p.read_bytes()).decode()
+        tex = f"url('data:{mime};base64,{b64}')"
+    else:
+        # graceful fallback if the image is missing
+        tex = ("radial-gradient(1200px 800px at 30% 8%, rgba(255,255,255,.06), rgba(0,0,0,0)),"
+               "radial-gradient(1200px 900px at 90% 85%, rgba(0,0,0,.08), rgba(0,0,0,0))")
+
+    st.markdown(f"""
     <style>
-      /* Use the theme's own background so text colours stay correct */
-      .stApp { background: var(--background-color) !important; }
+      /* Keep theme-managed colours so text stays readable in both modes */
+      .stApp {{ background: var(--background-color) !important; }}
+      [data-testid="stAppViewContainer"] {{ background: transparent !important; }}
 
-      /* Add a gentle texture overlay that adapts to OS/theme */
-      .stApp::before {
+      /* Texture layer */
+      .stApp::before {{
         content: "";
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        /* light-mode overlay (very subtle) */
-        background: linear-gradient(180deg, rgba(250,247,242,0.00) 0%, rgba(247,242,234,0.10) 100%);
-        z-index: 0;
-      }
+        position: fixed; inset: 0; pointer-events: none; z-index: 0;
+        background-image: {tex};
+        background-size: cover; background-position: center; background-attachment: fixed;
+        opacity: {light_opacity};
+      }}
 
-      /* Dark mode: use a darker, stronger overlay so it reads well */
-      @media (prefers-color-scheme: dark) {
-        .stApp::before {
-          background: linear-gradient(180deg, rgba(24,22,20,0.00) 0%, rgba(24,22,20,0.25) 100%);
-        }
-      }
+      /* Night-time parchment */
+      @media (prefers-color-scheme: dark) {{
+        .stApp::before {{ opacity: {dark_opacity}; filter: brightness(.75) contrast(.95) saturate(.9); }}
+      }}
+
+      /* Ensure UI sits above the overlay */
+      .main, .block-container, [data-testid="stSidebar"], [data-testid="stHeader"] {{
+        position: relative; z-index: 1;
+      }}
     </style>
     """, unsafe_allow_html=True)
 
 def inject_ui_chrome():
+    # Title + strapline
     st.title(APP_TITLE)
     st.caption("A tidy docket of intrigues, errands, and glorious misadventures.")
+
+    # Minimal garnish to keep things dashing yet legible on a textured backdrop
+    st.markdown("""
+    <style>
+      .block-container {
+        background: rgba(0,0,0,.55);
+        border-radius: 16px;
+        padding: 1rem 1.25rem;
+        backdrop-filter: blur(2px);
+        max-width: 1100px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      [data-testid="stSidebar"] {
+        background: rgba(0,0,0,.50);
+        backdrop-filter: blur(3px);
+      }
+      .stButton>button { border-radius: 10px; }
+      /* Streamlit multiselect tags */
+      [data-baseweb="tag"] { border-radius: 9999px !important; font-weight: 600; }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ---------- Panels ----------
 
@@ -211,8 +263,9 @@ def dm_panel(db):
             title = st.text_input("Title", placeholder="Recover the Moonshard from the Crypt of Kelemvor")
             location = st.text_input("Location", placeholder="City of the Dead → Kelemvorite Crypt")
         with c2:
-            reward = st.text_input("Reward", placeholder="300 gp + favor")
-            hook = st.text_area("Hook", height=120, placeholder="Witnesses saw necromancers ferrying a luminous shard into the crypt after midnight…")
+            reward = st.text_input("Reward", placeholder="300 gp + favour")
+            hook = st.text_area("Hook", height=120,
+                                placeholder="Witnesses saw necromancers ferrying a luminous shard into the crypt after midnight…")
         if st.button("Add Mission", type="primary", disabled=not title.strip()):
             m = new_mission(faction, title, reward, location, hook)
             db["missions"].append(m)
@@ -250,7 +303,8 @@ def player_dashboard(db):
     with f1:
         faction = st.multiselect("Faction", FACTIONS, default=FACTIONS)
     with f2:
-        status = st.multiselect("Status", ["Available","Accepted","Completed","Failed"], default=["Available","Accepted"])
+        status = st.multiselect("Status", ["Available","Accepted","Completed","Failed"],
+                                default=["Available","Accepted"])
     with f3:
         search = st.text_input("Search", placeholder="Title, location, hook…")
 
@@ -286,8 +340,9 @@ def player_dashboard(db):
 # ---------- App ----------
 
 def main():
-    st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide", initial_sidebar_state="collapsed")
-    set_app_background()
+    st.set_page_config(page_title=APP_TITLE, page_icon="🗺️",
+                       layout="wide", initial_sidebar_state="collapsed")
+    set_theme_background(BACKGROUND_IMAGE)  # ← parchment, theme-aware
     inject_ui_chrome()
 
     # One-time state init
