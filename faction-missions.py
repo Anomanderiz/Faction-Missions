@@ -204,7 +204,7 @@ def mission_card(m, key_prefix=""):
             st.caption(f'{m["faction"]} • {m["location"]} • Reward: {m["reward"]}')
             st.write(m["hook"])
             if m.get("notes"):
-                with st.expander("DM Notes"):
+                with st.expander("Notes"):
                     st.write(m["notes"])
         with c2:
             st.markdown(f"**Status:** {m['status']}")
