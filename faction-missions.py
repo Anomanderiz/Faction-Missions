@@ -5,9 +5,17 @@ from pathlib import Path
 import base64
 import streamlit as st
 
+# --- Optional: Google Sheets deps (graceful fallback if missing) ---
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials
+except Exception:  # missing locally? we just fall back to JSON
+    gspread = None
+    Credentials = None
+
 APP_TITLE = "Waterdeep Faction Missions"
 
-# ---------- Storage ----------
+# ---------- Storage (local fallback) ----------
 APP_DIR = Path.home() / ".waterdeep_faction_missions"
 APP_DIR.mkdir(parents=True, exist_ok=True)
 DATA_FILE = APP_DIR / "missions.json"
@@ -24,13 +32,102 @@ FACTIONS = [
     "Order of the Gauntlet 🛡",
 ]
 
-# ---------- DB ----------
+HEADERS = ["id","faction","title","reward","location","hook",
+           "created_at","updated_at","status","assigned_to","notes"]
+
+# ---------- Google Sheets backend ----------
+def _sheets_enabled() -> bool:
+    return (
+        gspread is not None
+        and Credentials is not None
+        and "gcp_service_account" in st.secrets
+        and "spreadsheet_id" in st.secrets
+    )
+
+def _sheets_client():
+    info = st.secrets["gcp_service_account"]
+    if isinstance(info, str):
+        info = json.loads(info)
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_info(info, scopes=scopes)
+    return gspread.authorize(creds)
+
+def _open_sheet():
+    gc = _sheets_client()
+    sh = gc.open_by_key(st.secrets["spreadsheet_id"])
+    try:
+        ws = sh.worksheet("Missions")
+    except gspread.exceptions.WorksheetNotFound:
+        ws = sh.add_worksheet("Missions", rows=1000, cols=20)
+    try:
+        meta = sh.worksheet("Meta")
+    except gspread.exceptions.WorksheetNotFound:
+        meta = sh.add_worksheet("Meta", rows=10, cols=2)
+    _ensure_headers(ws)
+    return sh, ws, meta
+
+def _ensure_headers(ws):
+    first = ws.row_values(1)
+    if first != HEADERS:
+        ws.clear()
+        ws.update("A1", [HEADERS])
+
+def _sheets_load_db():
+    """Return db dict from Google Sheets."""
+    _, ws, meta = _open_sheet()
+    # get_all_records respects the header row
+    rows = ws.get_all_records(default_blank="")
+    missions = []
+    # coerce everything to str to be safe (notes can be long)
+    for r in rows:
+        m = {k: str(r.get(k, "")) for k in HEADERS}
+        # guard: ensure id present (older rows)
+        m["id"] = m["id"] or str(uuid.uuid4())
+        missions.append(m)
+    updated = datetime.utcnow().isoformat()
+    try:
+        # Meta!A2 holds updated_at if present
+        meta_vals = meta.get_values("A2:B2")
+        if meta_vals and meta_vals[0][0] == "updated_at" and len(meta_vals[0]) > 1:
+            updated = meta_vals[0][1]
+    except Exception:
+        pass
+    return {"version": 1, "updated_at": updated, "missions": missions}
+
+def _sheets_save_db(data: dict):
+    """Overwrite the Missions sheet with current data; keep it simple & atomic."""
+    _, ws, meta = _open_sheet()
+    rows = [[m.get(h, "") for h in HEADERS] for m in data.get("missions", [])]
+    if rows:
+        ws.clear()
+        ws.update("A1", [HEADERS] + rows)
+        ws.resize(rows=len(rows) + 1)  # trim excess
+    else:
+        ws.clear(); ws.update("A1", [HEADERS])
+    # meta updated_at
+    meta.clear()
+    meta.update("A1", [["key", "value"], ["updated_at", data.get("updated_at", datetime.utcnow().isoformat())]])
+
+# ---------- DB (backend-agnostic API) ----------
 def _empty_db():
     return {"version": 1, "updated_at": datetime.utcnow().isoformat(), "missions": []}
 
 def load_db():
+    """Prefer Google Sheets; fall back to local JSON; cache in session."""
     if "db" in st.session_state and isinstance(st.session_state["db"], dict):
         return st.session_state["db"]
+
+    if _sheets_enabled():
+        try:
+            data = _sheets_load_db()
+            st.session_state["db"] = data
+            # also make a local backup (nice to have)
+            DATA_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            return data
+        except Exception as e:
+            st.warning(f"Sheets load failed ({e}); using local backup.")
+
+    # local path
     if DATA_FILE.exists():
         try:
             data = json.loads(DATA_FILE.read_text(encoding="utf-8"))
@@ -42,7 +139,14 @@ def load_db():
     return data
 
 def save_db(data):
+    """Write to Sheets if configured, else local JSON. Always refresh session."""
     data["updated_at"] = datetime.utcnow().isoformat()
+    if _sheets_enabled():
+        try:
+            _sheets_save_db(data)
+        except Exception as e:
+            st.error(f"Sheets save failed: {e}. Your changes were kept locally.")
+    # local backup/persistence too
     DATA_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     st.session_state["db"] = data
 
@@ -85,105 +189,68 @@ def delete_mission(db, mission_id: str):
 def set_glass_background(image_path: Path, overlay_strength=0.35, vignette=0.25, blur_px=0):
     """
     Full glass UI with your background.jpg.
-    - overlay_strength: dark scrim to keep text legible (0..1)
-    - vignette: extra darkening at edges (0..1)
-    - blur_px: optional background blur (GPU expensive; 0 keeps image crisp)
     """
     if image_path.exists():
         mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
         b64 = base64.b64encode(image_path.read_bytes()).decode()
         url = f"data:{mime};base64,{b64}"
     else:
-        # Fallback plain gradient if file missing
         url = None
 
     bg_image_css = (
         f"background-image: url('{url}');"
-        if url
-        else "background-image: radial-gradient(1200px 800px at 30% 8%, #1c1c1c, #0d0d0d);"
+        if url else "background-image: radial-gradient(1200px 800px at 30% 8%, #1c1c1c, #0d0d0d);"
     )
 
     st.markdown(
         f"""
 <style>
-/* Page background (fixed) */
-.stApp {{
-  background: #0b0b0b !important;
-}}
+.stApp {{ background: #0b0b0b !important; }}
 .stApp::before {{
-  content: "";
-  position: fixed; inset: 0; z-index: 0;
+  content: ""; position: fixed; inset: 0; z-index: 0;
   {bg_image_css}
   background-size: cover; background-position: center; background-repeat: no-repeat;
-  filter: blur({blur_px}px);
-  transform: translateZ(0); /* hint for GPU */
+  filter: blur({blur_px}px); transform: translateZ(0);
 }}
-
-/* Global dark scrim + vignette to guarantee contrast on busy art */
 .stApp::after {{
-  content: "";
-  position: fixed; inset: 0; z-index: 0;
+  content: ""; position: fixed; inset: 0; z-index: 0;
   background:
     radial-gradient(1200px 800px at 50% 60%, rgba(0,0,0,0) 0%, rgba(0,0,0,{vignette}) 80%),
     rgba(0,0,0,{overlay_strength});
   pointer-events: none;
 }}
-
-/* Glass container for the main column */
 .block-container {{
   position: relative; z-index: 1;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 18px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-  backdrop-filter: blur(14px) saturate(120%);
-  -webkit-backdrop-filter: blur(14px) saturate(120%);
-  padding: 1rem 1.25rem;
-  max-width: 1100px;
-  margin-left: auto; margin-right: auto;
+  border-radius: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  backdrop-filter: blur(14px) saturate(120%); -webkit-backdrop-filter: blur(14px) saturate(120%);
+  padding: 1rem 1.25rem; max-width: 1100px; margin-left: auto; margin-right: auto;
 }}
-
-/* Sidebar glass */
 [data-testid="stSidebar"] {{
   background: rgba(255,255,255,0.08) !important;
   border-left: 1px solid rgba(255,255,255,0.2);
-  backdrop-filter: blur(16px) saturate(130%);
-  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  backdrop-filter: blur(16px) saturate(130%); -webkit-backdrop-filter: blur(16px) saturate(130%);
 }}
-
-/* Make all "border=True" containers look like glass cards */
 div[data-testid="stVerticalBlockBorderWrapper"] {{
   background: rgba(255,255,255,0.08);
   border: 1px solid rgba(255,255,255,0.22);
-  border-radius: 16px;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.35);
-  backdrop-filter: blur(12px) saturate(125%);
-  -webkit-backdrop-filter: blur(12px) saturate(125%);
+  border-radius: 16px; box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+  backdrop-filter: blur(12px) saturate(125%); -webkit-backdrop-filter: blur(12px) saturate(125%);
 }}
-
-/* Typography – bright and crisp on dark art */
-html, .stApp, .markdown, p, span, label, textarea, input, .stMarkdown, .stTextInput>div>div>input {{
-  color: #eaeef5 !important;
-}}
-/* Dim secondary labels slightly */
-label, .stCaption, .st-emotion-cache-16idsys p, .st-emotion-cache-1629p8f p {{ color: #c9d1e1 !important; }}
-/* Inputs & buttons */
+html, .stApp, .markdown, p, span, label, textarea, input, .stMarkdown, .stTextInput>div>div>input {{ color: #eaeef5 !important; }}
+label, .stCaption {{ color: #c9d1e1 !important; }}
 .stButton>button {{
   border-radius: 12px; border: 1px solid rgba(255,255,255,0.28);
-  background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(255,255,255,0.08); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }}
 .stButton>button:hover {{ background: rgba(255,255,255,0.14); }}
-/* Tag pills a bit punchier */
 [data-baseweb="tag"] {{
   border-radius: 9999px !important; font-weight: 600;
   background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.22);
 }}
-/* Text inputs / selects glass */
 .stTextInput>div>div>input, .stSelectbox>div>div>div, .stMultiSelect>div>div>div {{
-  background: rgba(0,0,0,0.35) !important;
-  border-radius: 10px !important;
+  background: rgba(0,0,0,0.35) !important; border-radius: 10px !important;
   border: 1px solid rgba(255,255,255,0.22) !important;
 }}
 </style>
@@ -194,6 +261,38 @@ label, .stCaption, .st-emotion-cache-16idsys p, .st-emotion-cache-1629p8f p {{ c
 def chrome_header():
     st.title(APP_TITLE)
     st.caption("A tidy docket of intrigues, errands, and glorious misadventures.")
+
+def tweak_top_bar(mode: str = "compact"):
+    if mode == "hidden":
+        st.markdown("""
+        <style>
+          header[data-testid="stHeader"] { display: none !important; }
+          .block-container { padding-top: 1rem; }
+        </style>
+        """, unsafe_allow_html=True); return
+    if mode == "glass":
+        st.markdown("""
+        <style>
+          header[data-testid="stHeader"] { background: transparent !important; box-shadow: none !important; }
+          [data-testid="stToolbar"] {
+            position: fixed; top: 10px; right: 14px; z-index: 1000;
+            background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.22);
+            border-radius: 12px; padding: 4px 8px;
+            backdrop-filter: blur(8px) saturate(130%); -webkit-backdrop-filter: blur(8px) saturate(130%);
+          }
+        </style>
+        """, unsafe_allow_html=True); return
+    st.markdown("""
+    <style>
+      header[data-testid="stHeader"] { background: transparent !important; box-shadow: none !important; }
+      header[data-testid="stHeader"] > div:first-child { padding-top: 6px !important; padding-bottom: 6px !important; }
+      [data-testid="stToolbar"] {
+        background: rgba(0,0,0,0.30); border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 10px; padding: 2px 6px;
+        backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%);
+      }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ---------- UI ----------
 def mission_card(m, key_prefix=""):
@@ -322,60 +421,11 @@ def player_dashboard(db):
     for m in filtered:
         mission_card(m, key_prefix="dash-")
 
-def tweak_top_bar(mode: str = "compact"):
-    """
-    mode:
-      - 'compact'   → transparent, slim, keeps the sidebar toggle
-      - 'glass'     → floating glass pill for the toolbar
-      - 'hidden'    → removes the header entirely
-    """
-    if mode == "hidden":
-        st.markdown("""
-        <style>
-          header[data-testid="stHeader"] { display: none !important; }
-          .block-container { padding-top: 1rem; } /* pull content up */
-        </style>
-        """, unsafe_allow_html=True)
-        return
-
-    if mode == "glass":
-        st.markdown("""
-        <style>
-          header[data-testid="stHeader"] { background: transparent !important; box-shadow: none !important; }
-          /* Float the toolbar as a glass pill in the top-right */
-          [data-testid="stToolbar"] {
-            position: fixed; top: 10px; right: 14px; z-index: 1000;
-            background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.22);
-            border-radius: 12px; padding: 4px 8px;
-            backdrop-filter: blur(8px) saturate(130%); -webkit-backdrop-filter: blur(8px) saturate(130%);
-          }
-        </style>
-        """, unsafe_allow_html=True)
-        return
-
-    # 'compact' (default): keep the sidebar toggle, but make the bar transparent and slim
-    st.markdown("""
-    <style>
-      /* Strip the heavy header styling */
-      header[data-testid="stHeader"] { background: transparent !important; box-shadow: none !important; }
-      /* Compress header height without hiding the sidebar toggle */
-      header[data-testid="stHeader"] > div:first-child { padding-top: 6px !important; padding-bottom: 6px !important; }
-      /* Give the toolbar a subtle glass chip so it doesn’t float naked */
-      [data-testid="stToolbar"] {
-        background: rgba(0,0,0,0.30); border: 1px solid rgba(255,255,255,0.18);
-        border-radius: 10px; padding: 2px 6px;
-        backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%);
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
-
 # ---------- App ----------
 def main():
     st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide", initial_sidebar_state="collapsed")
     set_glass_background(BACKGROUND_IMAGE, overlay_strength=0.38, vignette=0.30, blur_px=0)
-    tweak_top_bar("hidden")   # try 'glass' or 'hidden' if you prefer
-
+    tweak_top_bar("hidden")
     chrome_header()
 
     if "selected_mission_id" not in st.session_state:
@@ -386,15 +436,15 @@ def main():
     with st.sidebar:
         st.header("View Mode")
         dm_mode = st.toggle("DM Mode", value=False, help="Toggle to add/edit missions.")
+        backend = "Google Sheets" if _sheets_enabled() else "Local JSON"
+        st.caption(f"Storage: {backend}")
         st.caption(f"Database updated: {db.get('updated_at', '—')}")
 
     if st.session_state.get("selected_mission_id"):
-        mission_detail_view(db, st.session_state["selected_mission_id"])
-        return
+        mission_detail_view(db, st.session_state["selected_mission_id"]); return
 
     if dm_mode:
-        dm_panel(db)
-        st.divider()
+        dm_panel(db); st.divider()
     player_dashboard(db)
 
 if __name__ == "__main__":
