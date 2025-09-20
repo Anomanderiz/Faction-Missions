@@ -419,7 +419,7 @@ def player_dashboard(db):
         mission_card(m, key_prefix="dash-")
 
 import traceback, json
-
+'''
 def storage_diagnostics():
     st.subheader("Storage diagnostics")
     ok = True
@@ -488,7 +488,7 @@ def storage_diagnostics():
         except Exception as e:
             st.error(f"Worksheet prep failed: {e}")
             st.code(traceback.format_exc())
-
+'''
 
 # ---------- App ----------
 def main():
@@ -508,8 +508,8 @@ def main():
         backend = "Google Sheets" if _sheets_enabled() else "Local JSON"
         st.caption(f"Storage: {backend}")
         st.caption(f"Database updated: {db.get('updated_at', '—')}")
-        if st.button("Run storage diagnostics"):
-            storage_diagnostics()
+        ##if st.button("Run storage diagnostics"):
+            ##storage_diagnostics()
 
     if st.session_state.get("selected_mission_id"):
         mission_detail_view(db, st.session_state["selected_mission_id"]); return
