@@ -141,7 +141,7 @@ def set_glass_background(image_path: Path, overlay_strength=0.35, vignette=0.25,
   padding: 1rem 1.25rem;
   max-width: 1100px;
   margin-left: auto; margin-right: auto;
-}
+}}
 
 /* Sidebar glass */
 [data-testid="stSidebar"] {{
