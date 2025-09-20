@@ -516,7 +516,7 @@ def main():
 
     #if dm_mode:
         #dm_panel(db); st.divider()
-    #player_dashboard(db)
+    player_dashboard(db)
 
 if __name__ == "__main__":
     main()
