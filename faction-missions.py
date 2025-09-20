@@ -322,10 +322,60 @@ def player_dashboard(db):
     for m in filtered:
         mission_card(m, key_prefix="dash-")
 
+def tweak_top_bar(mode: str = "compact"):
+    """
+    mode:
+      - 'compact'   → transparent, slim, keeps the sidebar toggle
+      - 'glass'     → floating glass pill for the toolbar
+      - 'hidden'    → removes the header entirely
+    """
+    if mode == "hidden":
+        st.markdown("""
+        <style>
+          header[data-testid="stHeader"] { display: none !important; }
+          .block-container { padding-top: 1rem; } /* pull content up */
+        </style>
+        """, unsafe_allow_html=True)
+        return
+
+    if mode == "glass":
+        st.markdown("""
+        <style>
+          header[data-testid="stHeader"] { background: transparent !important; box-shadow: none !important; }
+          /* Float the toolbar as a glass pill in the top-right */
+          [data-testid="stToolbar"] {
+            position: fixed; top: 10px; right: 14px; z-index: 1000;
+            background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.22);
+            border-radius: 12px; padding: 4px 8px;
+            backdrop-filter: blur(8px) saturate(130%); -webkit-backdrop-filter: blur(8px) saturate(130%);
+          }
+        </style>
+        """, unsafe_allow_html=True)
+        return
+
+    # 'compact' (default): keep the sidebar toggle, but make the bar transparent and slim
+    st.markdown("""
+    <style>
+      /* Strip the heavy header styling */
+      header[data-testid="stHeader"] { background: transparent !important; box-shadow: none !important; }
+      /* Compress header height without hiding the sidebar toggle */
+      header[data-testid="stHeader"] > div:first-child { padding-top: 6px !important; padding-bottom: 6px !important; }
+      /* Give the toolbar a subtle glass chip so it doesn’t float naked */
+      [data-testid="stToolbar"] {
+        background: rgba(0,0,0,0.30); border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 10px; padding: 2px 6px;
+        backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%);
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
+
 # ---------- App ----------
 def main():
     st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide", initial_sidebar_state="collapsed")
     set_glass_background(BACKGROUND_IMAGE, overlay_strength=0.38, vignette=0.30, blur_px=0)
+    tweak_top_bar("compact")   # try 'glass' or 'hidden' if you prefer
+
     chrome_header()
 
     if "selected_mission_id" not in st.session_state:
