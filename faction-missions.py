@@ -502,21 +502,21 @@ def main():
 
     db = load_db()
 
-    with st.sidebar:
-        st.header("View Mode")
-        dm_mode = st.toggle("DM Mode", value=False, help="Toggle to add/edit missions.")
-        backend = "Google Sheets" if _sheets_enabled() else "Local JSON"
-        st.caption(f"Storage: {backend}")
-        st.caption(f"Database updated: {db.get('updated_at', '—')}")
+    #with st.sidebar:
+        #st.header("View Mode")
+        #dm_mode = st.toggle("DM Mode", value=False, help="Toggle to add/edit missions.")
+        #backend = "Google Sheets" if _sheets_enabled() else "Local JSON"
+        #st.caption(f"Storage: {backend}")
+        #st.caption(f"Database updated: {db.get('updated_at', '—')}")
         ##if st.button("Run storage diagnostics"):
             ##storage_diagnostics()
 
     if st.session_state.get("selected_mission_id"):
         mission_detail_view(db, st.session_state["selected_mission_id"]); return
 
-    if dm_mode:
-        dm_panel(db); st.divider()
-    player_dashboard(db)
+    #if dm_mode:
+        #dm_panel(db); st.divider()
+    #player_dashboard(db)
 
 if __name__ == "__main__":
     main()
