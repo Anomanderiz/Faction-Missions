@@ -374,7 +374,7 @@ def tweak_top_bar(mode: str = "compact"):
 def main():
     st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide", initial_sidebar_state="collapsed")
     set_glass_background(BACKGROUND_IMAGE, overlay_strength=0.38, vignette=0.30, blur_px=0)
-    tweak_top_bar("compact")   # try 'glass' or 'hidden' if you prefer
+    tweak_top_bar("hidden")   # try 'glass' or 'hidden' if you prefer
 
     chrome_header()
 
