@@ -15,7 +15,7 @@ FACTIONS = [
     "Harpers 🎼",
     "Force Grey 🥷",
     "Zhentarim 🐍",
-    "Order of the Gauntlet 🛡️",
+    "Order of the Gauntlet 🛡",
 ]
 
 # ---------- Utility ----------
