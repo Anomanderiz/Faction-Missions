@@ -2,19 +2,18 @@ import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-import streamlit as st
 import base64
+import streamlit as st
 
 APP_TITLE = "Waterdeep Faction Missions"
 
-# Data lives in the user's home dir (as before)
+# ---------- Storage ----------
 APP_DIR = Path.home() / ".waterdeep_faction_missions"
 APP_DIR.mkdir(parents=True, exist_ok=True)
-DATA_FILE = APP_DIR / "missions.json"  # persistent on this machine
+DATA_FILE = APP_DIR / "missions.json"
 
-# App root (for assets)
 APP_ROOT = Path(__file__).resolve().parent
-BACKGROUND_IMAGE = APP_ROOT / "assets" / "parchment.jpg"
+BACKGROUND_IMAGE = APP_ROOT / "background.jpg"  # <- your repo image
 
 FACTIONS = [
     "Emerald Enclave 🌿",
@@ -25,40 +24,27 @@ FACTIONS = [
     "Order of the Gauntlet 🛡",
 ]
 
-# ---------- Utility ----------
-
+# ---------- DB ----------
 def _empty_db():
-    return {
-        "version": 1,
-        "updated_at": datetime.utcnow().isoformat(),
-        "missions": []  # list of mission dicts
-    }
+    return {"version": 1, "updated_at": datetime.utcnow().isoformat(), "missions": []}
 
 def load_db():
-    # Prefer in-memory session; else read from disk; else empty
-    if 'db' in st.session_state and isinstance(st.session_state['db'], dict):
-        return st.session_state['db']
+    if "db" in st.session_state and isinstance(st.session_state["db"], dict):
+        return st.session_state["db"]
     if DATA_FILE.exists():
         try:
             data = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-            if "missions" not in data:
-                data = _empty_db()
-            st.session_state['db'] = data
-            return data
         except Exception:
             data = _empty_db()
-            st.session_state['db'] = data
-            return data
-    data = _empty_db()
-    st.session_state['db'] = data
+    else:
+        data = _empty_db()
+    st.session_state["db"] = data
     return data
 
 def save_db(data):
-    data['updated_at'] = datetime.utcnow().isoformat()
-    # Ensure app dir exists (defensive)
-    APP_DIR.mkdir(parents=True, exist_ok=True)
+    data["updated_at"] = datetime.utcnow().isoformat()
     DATA_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    st.session_state['db'] = data
+    st.session_state["db"] = data
 
 def new_mission(faction, title, reward, location, hook):
     now = datetime.utcnow().isoformat()
@@ -71,27 +57,21 @@ def new_mission(faction, title, reward, location, hook):
         "hook": hook.strip(),
         "created_at": now,
         "updated_at": now,
-        "status": "Available",  # Available | Accepted | Completed | Failed
-        "assigned_to": "",      # Player/PC name(s)
-        "notes": ""
+        "status": "Available",
+        "assigned_to": "",
+        "notes": "",
     }
 
-def get_faction_missions(db, faction):
-    return [m for m in db["missions"] if m["faction"] == faction]
-
 def update_mission(db, mission_id: str, **fields):
-    changed = False
     for m in db["missions"]:
         if m["id"] == mission_id:
             for k, v in fields.items():
                 if v is not None:
                     m[k] = v
             m["updated_at"] = datetime.utcnow().isoformat()
-            changed = True
-            break
-    if changed:
-        save_db(db)
-    return changed
+            save_db(db)
+            return True
+    return False
 
 def delete_mission(db, mission_id: str):
     before = len(db["missions"])
@@ -101,8 +81,121 @@ def delete_mission(db, mission_id: str):
         return True
     return False
 
-# ---------- UI helpers ----------
+# ---------- GLASS BACKGROUND & CHROME ----------
+def set_glass_background(image_path: Path, overlay_strength=0.35, vignette=0.25, blur_px=0):
+    """
+    Full glass UI with your background.jpg.
+    - overlay_strength: dark scrim to keep text legible (0..1)
+    - vignette: extra darkening at edges (0..1)
+    - blur_px: optional background blur (GPU expensive; 0 keeps image crisp)
+    """
+    if image_path.exists():
+        mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
+        b64 = base64.b64encode(image_path.read_bytes()).decode()
+        url = f"data:{mime};base64,{b64}"
+    else:
+        # Fallback plain gradient if file missing
+        url = None
 
+    bg_image_css = (
+        f"background-image: url('{url}');"
+        if url
+        else "background-image: radial-gradient(1200px 800px at 30% 8%, #1c1c1c, #0d0d0d);"
+    )
+
+    st.markdown(
+        f"""
+<style>
+/* Page background (fixed) */
+.stApp {{
+  background: #0b0b0b !important;
+}}
+.stApp::before {{
+  content: "";
+  position: fixed; inset: 0; z-index: 0;
+  {bg_image_css}
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+  filter: blur({blur_px}px);
+  transform: translateZ(0); /* hint for GPU */
+}}
+
+/* Global dark scrim + vignette to guarantee contrast on busy art */
+.stApp::after {{
+  content: "";
+  position: fixed; inset: 0; z-index: 0;
+  background:
+    radial-gradient(1200px 800px at 50% 60%, rgba(0,0,0,0) 0%, rgba(0,0,0,{vignette}) 80%),
+    rgba(0,0,0,{overlay_strength});
+  pointer-events: none;
+}}
+
+/* Glass container for the main column */
+.block-container {{
+  position: relative; z-index: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  padding: 1rem 1.25rem;
+  max-width: 1100px;
+  margin-left: auto; margin-right: auto;
+}
+
+/* Sidebar glass */
+[data-testid="stSidebar"] {{
+  background: rgba(255,255,255,0.08) !important;
+  border-left: 1px solid rgba(255,255,255,0.2);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+}}
+
+/* Make all "border=True" containers look like glass cards */
+div[data-testid="stVerticalBlockBorderWrapper"] {{
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 16px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+  backdrop-filter: blur(12px) saturate(125%);
+  -webkit-backdrop-filter: blur(12px) saturate(125%);
+}}
+
+/* Typography – bright and crisp on dark art */
+html, .stApp, .markdown, p, span, label, textarea, input, .stMarkdown, .stTextInput>div>div>input {{
+  color: #eaeef5 !important;
+}}
+/* Dim secondary labels slightly */
+label, .stCaption, .st-emotion-cache-16idsys p, .st-emotion-cache-1629p8f p {{ color: #c9d1e1 !important; }}
+/* Inputs & buttons */
+.stButton>button {{
+  border-radius: 12px; border: 1px solid rgba(255,255,255,0.28);
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}}
+.stButton>button:hover {{ background: rgba(255,255,255,0.14); }}
+/* Tag pills a bit punchier */
+[data-baseweb="tag"] {{
+  border-radius: 9999px !important; font-weight: 600;
+  background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.22);
+}}
+/* Text inputs / selects glass */
+.stTextInput>div>div>input, .stSelectbox>div>div>div, .stMultiSelect>div>div>div {{
+  background: rgba(0,0,0,0.35) !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(255,255,255,0.22) !important;
+}}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+def chrome_header():
+    st.title(APP_TITLE)
+    st.caption("A tidy docket of intrigues, errands, and glorious misadventures.")
+
+# ---------- UI ----------
 def mission_card(m, key_prefix=""):
     with st.container(border=True):
         c1, c2 = st.columns([3, 1])
@@ -122,27 +215,21 @@ def mission_card(m, key_prefix=""):
         c3, c4, c5, c6 = st.columns(4)
         with c3:
             if st.button("View", key=f"{key_prefix}view-{m['id']}"):
-                st.session_state["selected_mission_id"] = m["id"]
-                st.rerun()
+                st.session_state["selected_mission_id"] = m["id"]; st.rerun()
         with c4:
             if st.button("Accept", key=f"{key_prefix}accept-{m['id']}"):
-                update_mission(m_db, m["id"], status="Accepted")
-                st.rerun()
+                update_mission(m_db, m["id"], status="Accepted"); st.rerun()
         with c5:
             if st.button("Complete", key=f"{key_prefix}complete-{m['id']}"):
-                update_mission(m_db, m["id"], status="Completed")
-                st.rerun()
+                update_mission(m_db, m["id"], status="Completed"); st.rerun()
         with c6:
             if st.button("Fail", key=f"{key_prefix}fail-{m['id']}"):
-                update_mission(m_db, m["id"], status="Failed")
-                st.rerun()
+                update_mission(m_db, m["id"], status="Failed"); st.rerun()
 
 def mission_detail_view(db, mission_id: str):
     m = next((x for x in db["missions"] if x["id"] == mission_id), None)
     if not m:
-        st.warning("Mission not found.")
-        return
-
+        st.warning("Mission not found."); return
     st.header(m["title"])
     st.caption(f'{m["faction"]} • {m["location"]}')
     st.write(m["hook"])
@@ -150,112 +237,30 @@ def mission_detail_view(db, mission_id: str):
 
     col1, col2, col3 = st.columns([2, 2, 1])
     with col1:
-        status = st.selectbox(
-            "Status",
-            ["Available", "Accepted", "Completed", "Failed"],
-            index=["Available","Accepted","Completed","Failed"].index(m["status"])
-        )
+        status = st.selectbox("Status",
+                              ["Available", "Accepted", "Completed", "Failed"],
+                              index=["Available","Accepted","Completed","Failed"].index(m["status"]))
     with col2:
         assigned_to = st.text_input("Assigned To", value=m.get("assigned_to",""))
     with col3:
         st.caption(f"Last updated: {m['updated_at'].split('T')[0]}")
 
-    notes = st.text_area("DM Notes", value=m.get("notes",""), height=160,
-                         placeholder="Clues, complications, timers, consequences…")
+    notes = st.text_area("DM Notes", value=m.get("notes",""), height=160)
 
     c1, c2, c3 = st.columns([1,1,1])
     with c1:
         if st.button("Save Changes", type="primary"):
             update_mission(db, mission_id, status=status, assigned_to=assigned_to, notes=notes)
-            st.success("Saved.")
-            st.rerun()
+            st.success("Saved."); st.rerun()
     with c2:
         if st.button("Delete Mission", type="secondary"):
             if delete_mission(db, mission_id):
-                st.success("Deleted.")
-                st.session_state["selected_mission_id"] = None
-                st.rerun()
+                st.success("Deleted."); st.session_state["selected_mission_id"] = None; st.rerun()
     with c3:
-        if st.button("Back"):
-            st.session_state["selected_mission_id"] = None
-            st.rerun()
-
-# ---------- Background & Chrome ----------
-
-def set_theme_background(image_path: str | Path, light_opacity=0.55, dark_opacity=0.18):
-    """
-    Restore the parchment background in light *and* dark modes without
-    breaking Streamlit's theme contrast.
-    """
-    p = Path(image_path) if image_path is not None else None
-    if p and p.exists():
-        mime = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
-        b64 = base64.b64encode(p.read_bytes()).decode()
-        tex = f"url('data:{mime};base64,{b64}')"
-    else:
-        # graceful fallback if the image is missing
-        tex = ("radial-gradient(1200px 800px at 30% 8%, rgba(255,255,255,.06), rgba(0,0,0,0)),"
-               "radial-gradient(1200px 900px at 90% 85%, rgba(0,0,0,.08), rgba(0,0,0,0))")
-
-    st.markdown(f"""
-    <style>
-      /* Keep theme-managed colours so text stays readable in both modes */
-      .stApp {{ background: var(--background-color) !important; }}
-      [data-testid="stAppViewContainer"] {{ background: transparent !important; }}
-
-      /* Texture layer */
-      .stApp::before {{
-        content: "";
-        position: fixed; inset: 0; pointer-events: none; z-index: 0;
-        background-image: {tex};
-        background-size: cover; background-position: center; background-attachment: fixed;
-        opacity: {light_opacity};
-      }}
-
-      /* Night-time parchment */
-      @media (prefers-color-scheme: dark) {{
-        .stApp::before {{ opacity: {dark_opacity}; filter: brightness(.75) contrast(.95) saturate(.9); }}
-      }}
-
-      /* Ensure UI sits above the overlay */
-      .main, .block-container, [data-testid="stSidebar"], [data-testid="stHeader"] {{
-        position: relative; z-index: 1;
-      }}
-    </style>
-    """, unsafe_allow_html=True)
-
-def inject_ui_chrome():
-    # Title + strapline
-    st.title(APP_TITLE)
-    st.caption("A tidy docket of intrigues, errands, and glorious misadventures.")
-
-    # Minimal garnish to keep things dashing yet legible on a textured backdrop
-    st.markdown("""
-    <style>
-      .block-container {
-        background: rgba(0,0,0,.55);
-        border-radius: 16px;
-        padding: 1rem 1.25rem;
-        backdrop-filter: blur(2px);
-        max-width: 1100px;
-        margin-left: auto;
-        margin-right: auto;
-      }
-      [data-testid="stSidebar"] {
-        background: rgba(0,0,0,.50);
-        backdrop-filter: blur(3px);
-      }
-      .stButton>button { border-radius: 10px; }
-      /* Streamlit multiselect tags */
-      [data-baseweb="tag"] { border-radius: 9999px !important; font-weight: 600; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# ---------- Panels ----------
+        if st.button("Back"): st.session_state["selected_mission_id"] = None; st.rerun()
 
 def dm_panel(db):
     st.subheader("DM Panel")
-
     with st.expander("Add Mission", expanded=True):
         c1, c2 = st.columns(2)
         with c1:
@@ -268,28 +273,22 @@ def dm_panel(db):
                                 placeholder="Witnesses saw necromancers ferrying a luminous shard into the crypt after midnight…")
         if st.button("Add Mission", type="primary", disabled=not title.strip()):
             m = new_mission(faction, title, reward, location, hook)
-            db["missions"].append(m)
-            save_db(db)
-            st.success("Mission added.")
-            st.rerun()
+            db["missions"].append(m); save_db(db)
+            st.success("Mission added."); st.rerun()
 
     st.divider()
     c1, c2 = st.columns([2, 1], vertical_alignment="bottom")
     with c1:
         st.markdown("**Export / Backup**")
         j = json.dumps(db, indent=2, ensure_ascii=False)
-        b64 = base64.b64encode(j.encode()).decode()
         st.download_button("Download JSON", data=j, file_name="missions.json", mime="application/json")
-
     with c2:
-        uploaded = st.file_uploader("Restore from JSON", type=["json"], accept_multiple_files=False)
+        uploaded = st.file_uploader("Restore from JSON", type=["json"])
         if uploaded is not None:
             try:
                 data = json.loads(uploaded.read().decode("utf-8"))
                 if isinstance(data, dict) and "missions" in data:
-                    save_db(data)
-                    st.success("Database restored.")
-                    st.rerun()
+                    save_db(data); st.success("Database restored."); st.rerun()
                 else:
                     st.error("Invalid file: expected a JSON object with a 'missions' list.")
             except Exception as e:
@@ -297,8 +296,6 @@ def dm_panel(db):
 
 def player_dashboard(db):
     st.subheader("Mission Board")
-
-    # Filters
     f1, f2, f3 = st.columns([2, 2, 1])
     with f1:
         faction = st.multiselect("Faction", FACTIONS, default=FACTIONS)
@@ -308,44 +305,29 @@ def player_dashboard(db):
     with f3:
         search = st.text_input("Search", placeholder="Title, location, hook…")
 
-    filtered = []
-    s_lower = (search or "").lower().strip()
+    filtered, s = [], (search or "").lower().strip()
     for m in db["missions"]:
-        if m["faction"] not in faction:
-            continue
-        if m["status"] not in status:
-            continue
-        if s_lower and not (
-            s_lower in m["title"].lower()
-            or s_lower in m["location"].lower()
-            or s_lower in m["hook"].lower()
-            or s_lower in m.get("notes","").lower()
-        ):
+        if m["faction"] not in faction: continue
+        if m["status"] not in status: continue
+        if s and not (s in m["title"].lower() or s in m["location"].lower()
+                      or s in m["hook"].lower() or s in m.get("notes","").lower()):
             continue
         filtered.append(m)
 
     if not filtered:
-        st.info("No missions match your current filters.")
-        return
+        st.info("No missions match your current filters."); return
 
-    # Sort newest first
     filtered.sort(key=lambda x: x["updated_at"], reverse=True)
-
-    # Render
-    global m_db
-    m_db = db  # used inside mission_card callbacks
+    global m_db; m_db = db
     for m in filtered:
         mission_card(m, key_prefix="dash-")
 
 # ---------- App ----------
-
 def main():
-    st.set_page_config(page_title=APP_TITLE, page_icon="🗺️",
-                       layout="wide", initial_sidebar_state="collapsed")
-    set_theme_background(BACKGROUND_IMAGE)  # ← parchment, theme-aware
-    inject_ui_chrome()
+    st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide", initial_sidebar_state="collapsed")
+    set_glass_background(BACKGROUND_IMAGE, overlay_strength=0.38, vignette=0.30, blur_px=0)
+    chrome_header()
 
-    # One-time state init
     if "selected_mission_id" not in st.session_state:
         st.session_state["selected_mission_id"] = None
 
@@ -356,12 +338,10 @@ def main():
         dm_mode = st.toggle("DM Mode", value=False, help="Toggle to add/edit missions.")
         st.caption(f"Database updated: {db.get('updated_at', '—')}")
 
-    # Detail page if a mission is selected
     if st.session_state.get("selected_mission_id"):
         mission_detail_view(db, st.session_state["selected_mission_id"])
         return
 
-    # Otherwise show the dashboards
     if dm_mode:
         dm_panel(db)
         st.divider()
