@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 import base64
 import streamlit as st
+import traceback, json
 
 # --- Optional: Google Sheets deps (graceful fallback if missing) ---
 try:
@@ -114,18 +115,14 @@ def _empty_db():
 
 def load_db():
     """Prefer Google Sheets; fall back to local JSON; cache in session."""
-    if "db" in st.session_state and isinstance(st.session_state["db"], dict):
-        return st.session_state["db"]
-
     if _sheets_enabled():
-        try:
-            data = _sheets_load_db()
-            st.session_state["db"] = data
-            # also make a local backup (nice to have)
-            DATA_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-            return data
-        except Exception as e:
-            st.warning(f"Sheets load failed ({e}); using local backup.")
+    try:
+        data = _sheets_load_db()
+        st.session_state["db"] = data
+        DATA_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        return data
+    except Exception as e:
+        st.warning(f"Sheets load failed ({type(e).__name__}: {e}); using local backup.")
 
     # local path
     if DATA_FILE.exists():
@@ -421,6 +418,78 @@ def player_dashboard(db):
     for m in filtered:
         mission_card(m, key_prefix="dash-")
 
+import traceback, json
+
+def storage_diagnostics():
+    st.subheader("Storage diagnostics")
+    ok = True
+
+    # 1) Secrets presence
+    has_sheet_id = "spreadsheet_id" in st.secrets
+    has_sa = "gcp_service_account" in st.secrets
+    st.write(f"spreadsheet_id present: **{has_sheet_id}**")
+    st.write(f"gcp_service_account present: **{has_sa}**")
+    if not (has_sheet_id and has_sa):
+        st.error("Missing required secrets."); return
+
+    # 2) Credentials build
+    try:
+        info = st.secrets["gcp_service_account"]
+        if isinstance(info, str):
+            info = json.loads(info)   # support JSON-in-secrets too
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        from google.oauth2.service_account import Credentials
+        creds = Credentials.from_service_account_info(info, scopes=scopes)
+        st.success("Built service-account credentials.")
+    except Exception as e:
+        ok = False
+        st.error(f"Failed to build credentials: {e}")
+        st.code(traceback.format_exc())
+
+    # 3) gspread client
+    if ok:
+        try:
+            import gspread
+            gc = gspread.authorize(creds)
+            st.success("Authorised gspread client.")
+        except Exception as e:
+            ok = False
+            st.error(f"Failed to authorise gspread: {e}")
+            st.code(traceback.format_exc())
+
+    # 4) Open spreadsheet
+    if ok:
+        try:
+            sid = st.secrets["spreadsheet_id"]
+            sh = gc.open_by_key(sid)
+            ws_titles = [ws.title for ws in sh.worksheets()]
+            st.success(f"Opened spreadsheet. Found worksheets: {ws_titles}")
+        except Exception as e:
+            ok = False
+            st.error(f"Failed to open spreadsheet by key: {e}")
+            st.info("• Is the service account **shared** on the sheet as Editor?\n"
+                    "• Is `spreadsheet_id` the long ID (not the full URL)?")
+            st.code(traceback.format_exc())
+
+    # 5) Ensure/inspect Missions sheet
+    if ok:
+        try:
+            try:
+                ws = sh.worksheet("Missions")
+            except Exception:
+                ws = sh.add_worksheet("Missions", rows=1000, cols=20)
+            # header row sanity
+            HEADERS = ["id","faction","title","reward","location","hook",
+                       "created_at","updated_at","status","assigned_to","notes"]
+            first = ws.row_values(1)
+            if first != HEADERS:
+                ws.clear(); ws.update("A1", [HEADERS])
+            st.success("Missions sheet ready with headers.")
+        except Exception as e:
+            st.error(f"Worksheet prep failed: {e}")
+            st.code(traceback.format_exc())
+
+
 # ---------- App ----------
 def main():
     st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide", initial_sidebar_state="collapsed")
@@ -439,6 +508,8 @@ def main():
         backend = "Google Sheets" if _sheets_enabled() else "Local JSON"
         st.caption(f"Storage: {backend}")
         st.caption(f"Database updated: {db.get('updated_at', '—')}")
+        if st.button("Run storage diagnostics"):
+            storage_diagnostics()
 
     if st.session_state.get("selected_mission_id"):
         mission_detail_view(db, st.session_state["selected_mission_id"]); return
