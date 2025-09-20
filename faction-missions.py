@@ -169,13 +169,31 @@ def mission_detail_view(db, mission_id: str):
             st.rerun()
 
 def set_app_background():
-    # Optional subtle parchment-style background (data URI)
-    css = """
+    # Respect Streamlit theme colours; add a subtle overlay instead of hard-forcing a light bg.
+    st.markdown("""
     <style>
-      .stApp { background: linear-gradient(180deg, #faf7f2 0%, #f7f2ea 100%); }
+      /* Use the theme's own background so text colours stay correct */
+      .stApp { background: var(--background-color) !important; }
+
+      /* Add a gentle texture overlay that adapts to OS/theme */
+      .stApp::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        /* light-mode overlay (very subtle) */
+        background: linear-gradient(180deg, rgba(250,247,242,0.00) 0%, rgba(247,242,234,0.10) 100%);
+        z-index: 0;
+      }
+
+      /* Dark mode: use a darker, stronger overlay so it reads well */
+      @media (prefers-color-scheme: dark) {
+        .stApp::before {
+          background: linear-gradient(180deg, rgba(24,22,20,0.00) 0%, rgba(24,22,20,0.25) 100%);
+        }
+      }
     </style>
-    """
-    st.markdown(css, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 def inject_ui_chrome():
     st.title(APP_TITLE)
