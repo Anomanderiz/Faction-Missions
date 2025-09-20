@@ -494,7 +494,7 @@ def storage_diagnostics():
 def main():
     st.set_page_config(page_title=APP_TITLE, page_icon="🗺️", layout="wide", initial_sidebar_state="collapsed")
     set_glass_background(BACKGROUND_IMAGE, overlay_strength=0.38, vignette=0.30, blur_px=0)
-    tweak_top_bar("hidden")
+    tweak_top_bar("compact")
     chrome_header()
 
     if "selected_mission_id" not in st.session_state:
