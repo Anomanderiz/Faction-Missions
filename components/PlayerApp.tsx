@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { FACTIONS, MISSION_STATUSES } from '@/lib/constants';
 import { fetchJson } from '@/lib/client-fetch';
+import { DB_SCHEMA } from '@/lib/db';
 import { getBrowserSupabase } from '@/lib/supabase/browser';
 import type { Mission, PublicAppState, StoryArc } from '@/lib/types';
 
@@ -53,11 +54,11 @@ export function PlayerApp() {
 
     const channel = supabase
       .channel('waterdeep-public-board')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'story_votes' }, scheduleRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'story_polls' }, scheduleRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'story_poll_options' }, scheduleRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'story_arcs' }, scheduleRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'faction_missions' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: DB_SCHEMA, table: 'story_votes' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: DB_SCHEMA, table: 'story_polls' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: DB_SCHEMA, table: 'story_poll_options' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: DB_SCHEMA, table: 'story_arcs' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: DB_SCHEMA, table: 'faction_missions' }, scheduleRefresh)
       .subscribe();
 
     return () => {

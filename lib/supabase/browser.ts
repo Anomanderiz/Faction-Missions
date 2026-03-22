@@ -1,6 +1,7 @@
 'use client';
 
 import { createClient } from '@supabase/supabase-js';
+import { DB_SCHEMA } from '@/lib/db';
 
 let browserClient: ReturnType<typeof createClient> | null = null;
 
@@ -13,7 +14,11 @@ export function getBrowserSupabase() {
       throw new Error('Supabase public environment variables are missing.');
     }
 
-    browserClient = createClient(url, anonKey);
+    browserClient = createClient(url, anonKey, {
+      db: {
+        schema: DB_SCHEMA
+      }
+    });
   }
 
   return browserClient;

@@ -72,6 +72,7 @@ Copy `.env.example` to `.env.local` and fill in:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SUPABASE_DB_SCHEMA=campaign_board
 SUPABASE_SERVICE_ROLE_KEY=
 ADMIN_PASSWORD=
 ADMIN_SESSION_SECRET=
@@ -85,9 +86,10 @@ Use a long random string for `ADMIN_SESSION_SECRET`.
 1. Create a Supabase project.
 2. Open the SQL editor.
 3. Run `supabase/schema.sql`.
-4. Optionally run `supabase/seed.sql`.
-5. Copy your project URL, anon key, and service role key into `.env.local`.
-6. Add your Discord webhook URL if you want open / close announcements.
+4. In **Settings → API**, add `campaign_board` to **Exposed schemas**.
+5. Optionally run `supabase/seed.sql`.
+6. Copy your project URL, anon key, service role key, and `NEXT_PUBLIC_SUPABASE_DB_SCHEMA=campaign_board` into `.env.local`.
+7. Add your Discord webhook URL if you want open / close announcements.
 
 ## Install and run
 
@@ -107,7 +109,7 @@ Open:
 
 The vote-closing logic lives in Postgres, not in the browser.
 
-`public.cast_story_vote(...)`:
+`campaign_board.cast_story_vote(...)`:
 - locks the poll row
 - validates the ballot option
 - inserts the vote
@@ -134,11 +136,11 @@ Players cannot write directly to the database. Voting is done through the app’
 ### 4) Realtime
 
 The player board subscribes to changes on:
-- `story_votes`
-- `story_polls`
-- `story_poll_options`
-- `story_arcs`
-- `faction_missions`
+- `campaign_board.story_votes`
+- `campaign_board.story_polls`
+- `campaign_board.story_poll_options`
+- `campaign_board.story_arcs`
+- `campaign_board.faction_missions`
 
 On change, the UI refetches the public state and refreshes the vote panel.
 
@@ -153,3 +155,9 @@ On change, the UI refetches the public state and refreshes the vote panel.
 ## Original app note
 
 The original Streamlit repo stored data in local JSON with an optional Google Sheets bridge. This rebuild replaces that with Supabase-backed CRUD and poll logic so you can edit everything from the app itself.
+
+## Separate-schema note
+
+This version is wired for a dedicated Supabase schema named `campaign_board` rather than `public`.
+That keeps it isolated from your other apps, but it does mean the app and SQL must agree on the schema name.
+If you want a different schema name, change `NEXT_PUBLIC_SUPABASE_DB_SCHEMA` and update the SQL accordingly before deployment.
