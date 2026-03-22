@@ -18,7 +18,7 @@ export function getBrowserSupabase() {
       db: {
         schema: DB_SCHEMA
       }
-    });
+    } as unknown as Parameters<typeof createClient>[2]);
   }
 
   return browserClient;

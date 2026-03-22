@@ -5,22 +5,40 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FACTIONS, MISSION_STATUSES, STORY_TYPES } from '@/lib/constants';
 import { fetchJson } from '@/lib/client-fetch';
-import type { AdminAppState, Mission, StoryArc } from '@/lib/types';
+import type { AdminAppState, Mission, MissionStatus, StoryArc, StoryArcType } from '@/lib/types';
 
-const emptyMissionForm = {
+type MissionFormState = {
+  faction: string;
+  title: string;
+  reward: string;
+  location: string;
+  hook: string;
+  status: MissionStatus;
+  assigned_to: string;
+  notes: string;
+};
+
+type StoryFormState = {
+  title: string;
+  type: StoryArcType;
+  blurb: string;
+  is_visible: boolean;
+};
+
+const emptyMissionForm: MissionFormState = {
   faction: FACTIONS[0],
   title: '',
   reward: '',
   location: '',
   hook: '',
-  status: 'Available' as const,
+  status: 'Available',
   assigned_to: '',
   notes: ''
 };
 
-const emptyStoryForm = {
+const emptyStoryForm: StoryFormState = {
   title: '',
-  type: 'MSQ' as const,
+  type: 'MSQ',
   blurb: '',
   is_visible: true
 };
@@ -36,8 +54,8 @@ export function DmApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
-  const [missionForm, setMissionForm] = useState(emptyMissionForm);
-  const [storyForm, setStoryForm] = useState(emptyStoryForm);
+  const [missionForm, setMissionForm] = useState<MissionFormState>(emptyMissionForm);
+  const [storyForm, setStoryForm] = useState<StoryFormState>(emptyStoryForm);
   const [editingMission, setEditingMission] = useState<Mission | null>(null);
   const [editingStoryArc, setEditingStoryArc] = useState<StoryArc | null>(null);
   const [selectedPollArcIds, setSelectedPollArcIds] = useState<string[]>([]);

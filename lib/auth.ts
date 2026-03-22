@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
+import type { JWTPayload } from 'jose';
 import { timingSafeEqual } from 'node:crypto';
 import { env } from '@/lib/env';
 
@@ -8,7 +9,7 @@ const encoder = new TextEncoder();
 const secret = encoder.encode(env.adminSessionSecret);
 const THIRTY_DAYS = 60 * 60 * 24 * 30;
 
-interface SessionPayload {
+interface SessionPayload extends JWTPayload {
   role: 'dm';
 }
 
